@@ -1,35 +1,74 @@
-import csv
+import numpy as np
+import pandas as pd
 import random
 
 
-def load_data(file_name):
-    rows = []
-    max_skill_num = 0
-    max_num_problems = 0
-    with open(file_name, "r") as csvfile:
-        reader = csv.reader(csvfile, delimiter=',')
-        for row in reader:
-            # row 可能是学生id或做题序列或答对01序列
-            rows.append(row)
-    print("filename: " + file_name + "the number of rows is " + str(len(rows)))
-
-    index = 0
-    tuple_rows = []
-    while index < len(rows)-1:
-        problems_num = int(rows[index][0])
-        tmp_max_skill = max(map(int, rows[index+1]))
-        if tmp_max_skill > max_skill_num:
-            max_skill_num = tmp_max_skill
-        if problems_num <= 2:
-            index += 3
+def split_into_seq(df, Tx):
+    if len(df.index) < Tx+1:
+        return None
+    else:
+        extra_row = len(df.index) % (Tx+1)
+        if extra_row > 0:
+            df_tmp = pd.concat([df.iloc[0: len(df.index) - extra_row, :], df.iloc[len(df.index)-(Tx+1): len(df.index), :]])
         else:
-            if problems_num > max_num_problems:
-                max_num_problems = problems_num
-            tup = (rows[index], rows[index+1], rows[index+2])
-            # tup:[题目个数, 题目序列, 答对情况]
-            tuple_rows.append(tup)
-            index += 3
-    # shuffle the tuple
-    random.shuffle(tuple_rows)
-    # tuple_rows的每一行是tup:[[题目个数], [题目序列], [答对情况]], max_num_problems最长题目序列, max_skill_num是知识点(题目)个数
-    return tuple_rows, max_num_problems, max_skill_num+1
+            df_tmp = df
+        arr_tmp = df_tmp.iloc[:, 3:].to_numpy()
+        return np.array_split(arr_tmp, arr_tmp.shape[0] / (Tx + 1))
+
+
+def build_data_ndarray(data_processed_user, Tx):
+    data_sequence = list(map(lambda x: split_into_seq(x, Tx), data_processed_user))
+    data_sequence = list(filter(lambda x: x is not None, data_sequence))
+    data_sequence = [item for items in data_sequence for item in items]
+    data_sequence = np.stack(data_sequence)
+    return data_sequence
+
+
+class DataGenerator(object):
+    def __init__(self, file_name, num_seq):
+        """
+
+        :param file_name: full path of dataset
+        :param num_seq: number of sequence
+        """
+        self.filename = file_name
+        self.train_seq = []
+        self.dev_seq = []
+        self.test_seq = []
+        self.Tx = num_seq
+
+    def read_data(self):
+        # read data and sorted by student_id
+        data = pd.read_csv(self.filename).sort_values('user_id')
+        # group by user_id
+        data_by_user = [x[1] for x in data.groupby('user_id')]
+        seqs_by_student = list(map(lambda x: split_into_seq(x, self.Tx), data_by_user))
+        seqs_by_student = list(filter(lambda x: x is not None, seqs_by_student))
+        seqs_by_student = [item for items in seqs_by_student for item in items]
+        seqs_by_student = np.stack(seqs_by_student)
+        return seqs_by_student
+
+    def split_data(self, seqs_by_student, random_seed=1):
+        """
+
+        :param seqs_by_student:
+        :param random_seed:
+        :return:
+        """
+        random_seed(random_seed)
+        random.shuffle(seqs_by_student)
+        n = seqs_by_student.shape[0]
+
+        split_1 = int(0.9 * n)
+        split_2 = int(0.95 * n)
+        self.train_seq = seqs_by_student[:split_1]
+        self.dev_seq = seqs_by_student[split_1:split_2]
+        self.test_seq = seqs_by_student[split_2:]
+
+
+if __name__ == "__main__":
+    file = 'skill_build_processed.csv'
+    Tx = 16
+    data = DataGenerator(file, Tx)
+    seq = data.read_data()
+    data.split_data(seq)
