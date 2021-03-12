@@ -48,7 +48,7 @@ class DataGenerator(object):
         seqs_by_student = np.stack(seqs_by_student)
         return seqs_by_student
 
-    def split_data(self, seqs_by_student, random_seed=1):
+    def split_data(self, random_seed=1):
         """
 
         :param seqs_by_student:
@@ -56,6 +56,7 @@ class DataGenerator(object):
         :return:
         """
         random_seed(random_seed)
+        seqs_by_student = self.read_data()
         random.shuffle(seqs_by_student)
         n = seqs_by_student.shape[0]
 
@@ -70,5 +71,4 @@ if __name__ == "__main__":
     file = 'skill_build_processed.csv'
     Tx = 16
     data = DataGenerator(file, Tx)
-    seq = data.read_data()
-    data.split_data(seq)
+    data.split_data()
