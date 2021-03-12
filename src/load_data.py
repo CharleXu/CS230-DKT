@@ -55,7 +55,7 @@ class DataGenerator(object):
         :param random_seed:
         :return:
         """
-        random_seed(random_seed)
+        random.seed(random_seed)
         seqs_by_student = self.read_data()
         random.shuffle(seqs_by_student)
         n = seqs_by_student.shape[0]
